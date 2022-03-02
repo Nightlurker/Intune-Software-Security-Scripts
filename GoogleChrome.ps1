@@ -10,6 +10,10 @@ Checks and sets the registry settings.
 Uses registry functions from Carbon project: https://github.com/webmd-health-services/Carbon/
 #>
 
+#BEGIN: Run detection?
+$Detection = $false
+#END: Run detection?
+
 #BEGIN: Registry settings that will be checked and set
 $Settings = @(
     @{
@@ -420,18 +424,35 @@ function Get-CRegistryKeyValue
 
 #BEGIN: executing the script
 try {
-    foreach ($Setting in $Settings) {
-        if ($Setting.Ensure -eq 'Present') {
-            switch ($Setting.ValueType) {
-                'REG_SZ' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -String $Setting.ValueData }
-                'REG_BINARY' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -Binary $Setting.ValueData }
-                'REG_DWORD' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -DWord $Setting.ValueData }
-                'REG_QWORD' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -QWord $Setting.ValueData }
-                'REG_MULTI_SZ' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -Strings $Setting.ValueData }
-                'REG_EXPAND_SZ' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -Expand $Setting.ValueData }
+    if ($Detection) {
+        foreach ($Setting in $Settings) {
+            if ($Setting.Ensure -eq 'Present') {
+                if (!(Test-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName)) {
+                    Write-Host "$($Setting.Hive + $Setting.Key): $($Setting.ValueName) ($($Setting.ValueType)) not found!"
+                    exit 1
+                }
+            } elseif ($Setting.Ensure -eq 'Absent') {
+                if ((Test-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName)) {
+                    Write-Host "$($Setting.Hive + $Setting.Key): $($Setting.ValueName) ($($Setting.ValueType)) found!"
+                    exit 1
+                }
             }
-        } elseif ($Setting.Ensure -eq 'Absent') {
-            Remove-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName
+        }
+        exit 0
+    } else {
+        foreach ($Setting in $Settings) {
+            if ($Setting.Ensure -eq 'Present') {
+                switch ($Setting.ValueType) {
+                    'REG_SZ' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -String $Setting.ValueData }
+                    'REG_BINARY' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -Binary $Setting.ValueData }
+                    'REG_DWORD' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -DWord $Setting.ValueData }
+                    'REG_QWORD' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -QWord $Setting.ValueData }
+                    'REG_MULTI_SZ' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -Strings $Setting.ValueData }
+                    'REG_EXPAND_SZ' { Set-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName -Expand $Setting.ValueData }
+                }
+            } elseif ($Setting.Ensure -eq 'Absent') {
+                Remove-CRegistryKeyValue -Path ($Setting.Hive + $Setting.Key) -Name $Setting.ValueName
+            }
         }
     }
 } catch {
